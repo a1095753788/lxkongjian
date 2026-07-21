@@ -16,7 +16,8 @@ class VideoItem {
   final int likeCount;
   final bool isLiked;
   final bool isFavorited;
-  final double watchProgress; // 0.0 - 1.0
+  final bool isNotInterested;
+  final double watchProgress;
   final String? transcodedPath;
   final bool isTranscoded;
 
@@ -36,24 +37,11 @@ class VideoItem {
     this.likeCount = 0,
     this.isLiked = false,
     this.isFavorited = false,
+    this.isNotInterested = false,
     this.watchProgress = 0.0,
     this.transcodedPath,
     this.isTranscoded = false,
   }) : lastPlayedAt = lastPlayedAt ?? addedAt;
-
-  double get score {
-    double baseScore = 0.0;
-    baseScore += playCount * 2.0;
-    baseScore += likeCount * 3.0;
-    if (isLiked) baseScore += 5.0;
-    if (isFavorited) baseScore += 10.0;
-    final daysSinceAdded = DateTime.now().difference(addedAt).inDays;
-    final daysSincePlayed = DateTime.now().difference(lastPlayedAt).inDays;
-    baseScore *= 1.0 / (1.0 + daysSinceAdded * 0.1);
-    if (daysSincePlayed < 1) baseScore *= 0.5; // 降低刚看过的权重
-    if (watchProgress > 0.9) baseScore *= 0.3; // 降低已看完的权重
-    return baseScore;
-  }
 
   String get displayName {
     return name.replaceAll(RegExp(r'\.[^.]+$'), '');
@@ -88,6 +76,7 @@ class VideoItem {
     int? likeCount,
     bool? isLiked,
     bool? isFavorited,
+    bool? isNotInterested,
     double? watchProgress,
     String? transcodedPath,
     bool? isTranscoded,
@@ -108,6 +97,7 @@ class VideoItem {
       likeCount: likeCount ?? this.likeCount,
       isLiked: isLiked ?? this.isLiked,
       isFavorited: isFavorited ?? this.isFavorited,
+      isNotInterested: isNotInterested ?? this.isNotInterested,
       watchProgress: watchProgress ?? this.watchProgress,
       transcodedPath: transcodedPath ?? this.transcodedPath,
       isTranscoded: isTranscoded ?? this.isTranscoded,
@@ -131,6 +121,7 @@ class VideoItem {
       'likeCount': likeCount,
       'isLiked': isLiked ? 1 : 0,
       'isFavorited': isFavorited ? 1 : 0,
+      'isNotInterested': isNotInterested ? 1 : 0,
       'watchProgress': watchProgress,
       'transcodedPath': transcodedPath,
       'isTranscoded': isTranscoded ? 1 : 0,
@@ -156,6 +147,7 @@ class VideoItem {
       likeCount: map['likeCount'] as int? ?? 0,
       isLiked: (map['isLiked'] as int?) == 1,
       isFavorited: (map['isFavorited'] as int?) == 1,
+      isNotInterested: (map['isNotInterested'] as int?) == 1,
       watchProgress: (map['watchProgress'] as num?)?.toDouble() ?? 0.0,
       transcodedPath: map['transcodedPath'] as String?,
       isTranscoded: (map['isTranscoded'] as int?) == 1,

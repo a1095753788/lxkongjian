@@ -29,6 +29,14 @@ class VideoSideActions extends StatelessWidget {
             onTap: () => _showDeleteConfirm(context),
           ),
           const SizedBox(height: 22),
+          // 不感兴趣
+          _SideActionButton(
+            icon: Icons.close,
+            label: video.isNotInterested ? '已屏蔽' : '',
+            color: video.isNotInterested ? const Color(0xFF9CA3AF) : Colors.white,
+            onTap: () => _toggleNotInterested(context),
+          ),
+          const SizedBox(height: 22),
           // 点赞
           _SideActionButton(
             icon: video.isLiked ? Icons.favorite : Icons.favorite_border,
@@ -72,6 +80,16 @@ class VideoSideActions extends StatelessWidget {
     if (newComment != null) {
       DanmakuOverlay.addLiveComment(context, newComment);
     }
+  }
+
+  void _toggleNotInterested(BuildContext context) async {
+    await context.read<VideoProvider>().toggleNotInterested(video.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(video.isNotInterested ? '已取消不感兴趣' : '已标记为不感兴趣'),
+        duration: const Duration(milliseconds: 1500),
+      ),
+    );
   }
 
   void _showDeleteConfirm(BuildContext context) {

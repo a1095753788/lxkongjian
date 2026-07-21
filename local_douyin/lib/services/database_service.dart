@@ -79,6 +79,11 @@ class DatabaseService {
         await db.execute('ALTER TABLE videos ADD COLUMN isFavorited INTEGER DEFAULT 0');
       } catch (_) {}
     }
+    if (oldVersion < 4) {
+      try {
+        await db.execute('ALTER TABLE videos ADD COLUMN isNotInterested INTEGER DEFAULT 0');
+      } catch (_) {}
+    }
   }
 
   Future<void> _createCommentsTable(Database db) async {
@@ -198,6 +203,19 @@ class DatabaseService {
       'UPDATE videos SET isFavorited = CASE WHEN isFavorited = 1 THEN 0 ELSE 1 END WHERE id = ?',
       [id],
     );
+  }
+
+  Future<void> toggleNotInterested(String id) async {
+    final db = await database;
+    await db.rawUpdate(
+      'UPDATE videos SET isNotInterested = CASE WHEN isNotInterested = 1 THEN 0 ELSE 1 END WHERE id = ?',
+      [id],
+    );
+  }
+
+  Future<void> resetAllNotInterested() async {
+    final db = await database;
+    await db.rawUpdate('UPDATE videos SET isNotInterested = 0 WHERE isNotInterested = 1');
   }
 
   Future<void> updateWatchProgress(String id, double progress) async {

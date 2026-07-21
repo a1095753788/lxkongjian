@@ -16,6 +16,7 @@ class ProfileScreen extends StatelessWidget {
     final totalFolders = folderProvider.folders.length;
     final likedVideos = videoProvider.videos.where((v) => v.isLiked).length;
     final favoriteVideos = videoProvider.videos.where((v) => v.isFavorited).length;
+    final notInterestedVideos = videoProvider.videos.where((v) => v.isNotInterested).length;
     final totalPlayCount = videoProvider.videos.fold(0, (sum, v) => sum + v.playCount);
 
     return Scaffold(
@@ -32,13 +33,31 @@ class ProfileScreen extends StatelessWidget {
               color: const Color(0xFF1A1A1A),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            child: Column(
               children: [
-                _StatItem(label: '视频', value: '$totalVideos'),
-                _StatItem(label: '喜欢', value: '$likedVideos'),
-                _StatItem(label: '收藏', value: '$favoriteVideos'),
-                _StatItem(label: '总播放', value: '$totalPlayCount'),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _StatItem(label: '视频', value: '$totalVideos'),
+                    _StatItem(label: '喜欢', value: '$likedVideos'),
+                    _StatItem(label: '收藏', value: '$favoriteVideos'),
+                    _StatItem(label: '总播放', value: '$totalPlayCount'),
+                  ],
+                ),
+                if (notInterestedVideos > 0) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.block, color: Colors.white38, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        '已屏蔽 $notInterestedVideos 个不感兴趣视频',
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -81,6 +100,7 @@ class ProfileScreen extends StatelessWidget {
                 title: '刷新推荐',
                 subtitle: '重新生成推荐视频列表',
                 onTap: () async {
+                  context.read<VideoProvider>().clearRecommendationMemory();
                   await context.read<VideoProvider>().loadRecommendedVideos();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -88,6 +108,53 @@ class ProfileScreen extends StatelessWidget {
                     );
                   }
                 },
+              ),
+              _MenuItem(
+                icon: Icons.block_flipped,
+                title: '重置不感兴趣',
+                subtitle: notInterestedVideos > 0
+                    ? '恢复 $notInterestedVideos 个已屏蔽视频'
+                    : '暂无已屏蔽视频',
+                titleColor: notInterestedVideos > 0 ? Colors.white : Colors.white54,
+                onTap: notInterestedVideos == 0
+                    ? null
+                    : () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1A1A1A),
+                            title: const Text(
+                              '重置不感兴趣',
+                              style: TextStyle(color: Colors.white, fontSize: 18),
+                            ),
+                            content: Text(
+                              '确定恢复 $notInterestedVideos 个已屏蔽视频吗？\n它们将重新出现在推荐列表中。',
+                              style: const TextStyle(color: Colors.white70, fontSize: 14),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('取消', style: TextStyle(color: Colors.white70)),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text(
+                                  '确定',
+                                  style: TextStyle(color: Color(0xFFFE2C55)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true) {
+                          await context.read<VideoProvider>().resetAllNotInterested();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('已重置所有不感兴趣标记')),
+                            );
+                          }
+                        }
+                      },
               ),
             ],
           ),
@@ -184,24 +251,33 @@ class _MenuItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? subtitle;
-  final VoidCallback onTap;
+  final Color? titleColor;
+  final VoidCallback? onTap;
 
   const _MenuItem({
     required this.icon,
     required this.title,
     this.subtitle,
+    this.titleColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return ListTile(
-      leading: Icon(icon, color: Colors.white70),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      leading: Icon(icon, color: enabled ? Colors.white70 : Colors.white38),
+      title: Text(
+        title,
+        style: TextStyle(color: titleColor ?? (enabled ? Colors.white : Colors.white54)),
+      ),
       subtitle: subtitle != null
           ? Text(subtitle!, style: const TextStyle(color: Colors.white38, fontSize: 12))
           : null,
-      trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: enabled ? Colors.white24 : Colors.white12,
+      ),
       onTap: onTap,
     );
   }

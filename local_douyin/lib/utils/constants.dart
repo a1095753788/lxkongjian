@@ -1,7 +1,7 @@
 class AppConstants {
   static const String appName = '本地抖音';
   static const String dbName = 'local_douyin.db';
-  static const int dbVersion = 3;
+  static const int dbVersion = 4;
 
   // 支持的视频格式
   static const List<String> supportedVideoExtensions = [

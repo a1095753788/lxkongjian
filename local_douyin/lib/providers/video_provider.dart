@@ -127,6 +127,30 @@ class VideoProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> toggleNotInterested(String videoId) async {
+    await _dbService.toggleNotInterested(videoId);
+    final video = await _dbService.getVideoById(videoId);
+    if (video != null) {
+      final index = _videos.indexWhere((v) => v.id == videoId);
+      if (index != -1) {
+        _videos[index] = video;
+      }
+      final recIndex = _recommendedVideos.indexWhere((v) => v.id == videoId);
+      if (recIndex != -1) {
+        _recommendedVideos[recIndex] = video;
+      }
+      if (_currentVideo?.id == videoId) {
+        _currentVideo = video;
+      }
+      notifyListeners();
+    }
+  }
+
+  Future<void> resetAllNotInterested() async {
+    await _dbService.resetAllNotInterested();
+    await loadVideos();
+  }
+
   Future<void> updateWatchProgress(String videoId, double progress) async {
     await _dbService.updateWatchProgress(videoId, progress);
   }
