@@ -44,5 +44,5 @@ local_douyin.db
 thumbnails/
 transcoded/
 
-# Logs
-*.log
+# Release APK (pre-built, keep apk/ but not build/)
+!apk/
