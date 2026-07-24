@@ -11,6 +11,7 @@ import 'database_service.dart';
 ///
 /// 1. **过滤层（Filtering Layer）**
 ///    - 完全排除 `isNotInterested` 标记的视频
+///    - 排除 `isFavorited` 收藏视频（收藏视频只在"收藏"页展示）
 ///    - 会话内短期去重（最近30条）
 ///
 /// 2. **Engagement Score（互动分）**
@@ -65,10 +66,11 @@ class RecommendationService {
     final allVideos = await _dbService.getAllVideos();
     if (allVideos.isEmpty) return [];
 
-    // 过滤层：排除不感兴趣和已排除的视频
+    // 过滤层：排除不感兴趣、已收藏和已排除的视频
     final exclude = excludeIds ?? <String>{};
     final candidates = allVideos.where((v) {
       if (v.isNotInterested) return false;
+      if (v.isFavorited) return false;
       if (exclude.contains(v.id)) return false;
       if (_recentlyShown.contains(v.id)) return false;
       return true;
