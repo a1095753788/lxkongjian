@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.novabox.player'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.novabox.player"
+        // Android 7.0 set-top box
+        minSdk 24
+        // Keep below Android 10 to avoid scoped-storage restrictions
+        // so direct File access to local folders works reliably on the TV box.
+        targetSdk 28
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    // Framework-only: no external libs, maximises compatibility on old TV boxes.
+}

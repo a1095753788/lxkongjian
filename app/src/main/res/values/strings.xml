@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NovaBox 播放器</string>
+    <string name="hint_browse">使用遥控器方向键浏览文件夹，选择后自动随机播放视频</string>
+    <string name="select_and_play">选择并播放</string>
+    <string name="shuffle_on">随机播放：开</string>
+    <string name="shuffle_off">随机播放：关</string>
+    <string name="no_videos_found">该文件夹中没有找到视频文件</string>
+    <string name="playback_error">播放出错，跳到下一个</string>
+    <string name="permission_denied">需要存储权限才能扫描本地视频</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_speed">播放速度</string>
+    <string name="settings_delete">删除当前视频文件</string>
+    <string name="settings_close">关闭设置</string>
+    <string name="settings_deleted">已删除，跳到下一个</string>
+    <string name="settings_delete_fail">删除失败</string>
+</resources>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Main app theme (dark, D-pad friendly) -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorBackground">@color/bg_dark</item>
+        <item name="android:windowBackground">@color/bg_dark</item>
+        <item name="android:textColorPrimary">#FFFFFFFF</item>
+        <item name="android:colorAccent">@color/accent</item>
+    </style>
+
+    <!-- Fullscreen black theme for the player -->
+    <style name="PlayerTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+</resources>
