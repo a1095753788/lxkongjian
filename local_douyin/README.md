@@ -222,8 +222,9 @@ local_douyin/
 
 ### 其他
 
-- 没有单元测试、没有 CI
+- **`video_thumbnail 0.5.6` 与 Gradle 9 不兼容。** 这个包已停更（pub 上最新版就是 0.5.6，2025-05 之后没再发版），它的 `android/build.gradle` 里还在调用 `jcenter()`，而 jcenter 在 Gradle 8 废弃、Gradle 9 已被移除。构建会报 `Could not find method jcenter()`，并连带出现 `'kotlin-android' plugin requires one of the Android Gradle plugins`。CI 里用 `sed` 删掉这一行绕过；本地构建遇到同样错误照此处理。
 - `video_player` / `chewie` 还在 `pubspec.yaml` 里，但代码已完全迁移到 `media_kit`，这两个是残留依赖，可以删
+- 没有单元测试
 - 没有截图（欢迎 PR 补）
 
 ---

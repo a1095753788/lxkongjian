@@ -83,6 +83,24 @@ jobs:
         working-directory: local_douyin
         run: flutter pub get
 
+      # video_thumbnail 0.5.6（pub 上的最新版，2025-05 之后停更）的
+      # android/build.gradle 里还在调用 jcenter()。jcenter 在 Gradle 8 已废弃、
+      # Gradle 9 被彻底移除，而本项目用 Gradle 9.1.0，插件一加载就报
+      # "Could not find method jcenter()"，进而连带 'kotlin-android' plugin
+      # requires one of the Android Gradle plugins 一起失败。
+      # pub 上没有可用新版本，只能在 CI 里把这一行删掉。
+      - name: Patch video_thumbnail (jcenter removed in Gradle 9)
+        run: |
+          F=$(find "$HOME/.pub-cache" -path "*video_thumbnail*/android/build.gradle" 2>/dev/null | head -1)
+          if [ -z "$F" ]; then
+            echo "::error::video_thumbnail build.gradle not found in pub cache"
+            exit 1
+          fi
+          echo "patching: $F"
+          sed -i '/jcenter()/d' "$F"
+          echo "--- after patch ---"
+          cat "$F"
+
       - name: Build debug APK
         id: build
         working-directory: local_douyin
