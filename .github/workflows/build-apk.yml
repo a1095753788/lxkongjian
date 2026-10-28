@@ -43,7 +43,6 @@ jobs:
           flutter --version
           java -version
           echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
       # AGP 9.0.1 硬性要求：compileSdk 36 + build-tools >= 36.0.0 + JDK 17 + Gradle 9.1.0
       # 无条件安装，sdkmanager 对已存在的组件会直接跳过
@@ -59,10 +58,23 @@ jobs:
           echo "--- platforms ---";  ls "$SDK/platforms"  || true
           echo "--- build-tools ---"; ls "$SDK/build-tools" || true
 
+      # 项目为国内网络环境配置了阿里云 maven 镜像并排在仓库列表最前面。
+      # GitHub runner 在境外，访问 maven.aliyun.com 会超时/被拒，且排在最前会
+      # 让 Gradle 先卡在那里。CI 里直接移除，只用 google()/mavenCentral()。
+      - name: Drop CN maven mirrors (CI runs outside China)
+        run: |
+          sed -i '/maven.aliyun.com/d' local_douyin/android/settings.gradle.kts \
+                                        local_douyin/android/build.gradle.kts
+          echo "--- settings.gradle.kts repositories ---"
+          grep -n "maven\|google()\|mavenCentral\|gradlePluginPortal" \
+            local_douyin/android/settings.gradle.kts || true
+          echo "--- build.gradle.kts repositories ---"
+          grep -n "maven\|google()\|mavenCentral" local_douyin/android/build.gradle.kts || true
+
       - name: Point Gradle wrapper at official distribution
         run: |
-          # 仓库里 wrapper 指向腾讯云镜像（为国内网络优化），GitHub runner 在境外访问可能不通，
-          # 且分发包下载失败不会 fallback，会直接中断构建。这里在 CI 环境改回官方源。
+          # wrapper 指向腾讯云镜像（为国内网络优化），境外访问可能不通，
+          # 且分发包下载失败不会 fallback，会直接中断构建。
           F=local_douyin/android/gradle/wrapper/gradle-wrapper.properties
           sed -i 's|mirrors.cloud.tencent.com/gradle/|services.gradle.org/distributions/|' "$F"
           cat "$F"
@@ -91,28 +103,39 @@ jobs:
       - name: Stop if build failed
         if: steps.build.outcome != 'success'
         run: |
+          # 写进 step summary，这样失败原因在 run 页面顶部直接可见，
+          # 不必下载 artifact 才能看到。
+          {
+            echo "## APK 构建失败"
+            echo ""
+            echo "### 错误关键行"
+            echo '```'
+            grep -n -i -E "error|failed|failure|exception|could not|unable to|no such|not found|incompatible|resolve" \
+              local_douyin/build.log | tail -n 80 || true
+            echo '```'
+            echo ""
+            echo "### 日志末尾 120 行"
+            echo '```'
+            tail -n 120 local_douyin/build.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 同时落一份到仓库，方便直接读
           mkdir -p ci-logs
           {
             echo "# 构建失败日志"
-            echo
+            echo ""
             echo "run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            echo "commit: ${{ github.sha }}"
-            echo
-            echo "## 版本信息"
-            echo '```'
-            flutter --version 2>&1 || true
-            java -version 2>&1 || true
-            echo '```'
-            echo
+            echo ""
             echo "## 错误关键行"
             echo '```'
-            grep -n -i -E "error|failed|failure|exception|could not|unable to|no such|not found|incompatible" \
-              local_douyin/build.log | tail -n 100 || true
+            grep -n -i -E "error|failed|failure|exception|could not|unable to|no such|not found|incompatible|resolve" \
+              local_douyin/build.log | tail -n 120 || true
             echo '```'
-            echo
-            echo "## 日志末尾 200 行"
+            echo ""
+            echo "## 日志末尾 250 行"
             echo '```'
-            tail -n 200 local_douyin/build.log || true
+            tail -n 250 local_douyin/build.log || true
             echo '```'
           } > ci-logs/last-failure.md
 
@@ -120,8 +143,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ci-logs/last-failure.md
           git commit -m "ci: 记录构建失败日志 [skip ci]" || echo "nothing to commit"
+          # 期间可能有人往 master 推过东西，先 rebase 再推
+          git pull --rebase origin master || git rebase --abort || true
           git push origin HEAD:master || echo "push failed"
-          echo "::error::APK build failed — full log committed to ci-logs/last-failure.md"
+
           exit 1
 
       - name: Report APK size
