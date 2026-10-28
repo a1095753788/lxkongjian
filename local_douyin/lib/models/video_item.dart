@@ -18,8 +18,6 @@ class VideoItem {
   final bool isFavorited;
   final bool isNotInterested;
   final double watchProgress;
-  final String? transcodedPath;
-  final bool isTranscoded;
 
   VideoItem({
     required this.id,
@@ -39,8 +37,6 @@ class VideoItem {
     this.isFavorited = false,
     this.isNotInterested = false,
     this.watchProgress = 0.0,
-    this.transcodedPath,
-    this.isTranscoded = false,
   }) : lastPlayedAt = lastPlayedAt ?? addedAt;
 
   String get displayName {
@@ -57,8 +53,6 @@ class VideoItem {
   }
 
   String get resolution => '${width}x$height';
-
-  String get playPath => isTranscoded && transcodedPath != null ? transcodedPath! : path;
 
   VideoItem copyWith({
     String? id,
@@ -78,8 +72,6 @@ class VideoItem {
     bool? isFavorited,
     bool? isNotInterested,
     double? watchProgress,
-    String? transcodedPath,
-    bool? isTranscoded,
   }) {
     return VideoItem(
       id: id ?? this.id,
@@ -99,8 +91,6 @@ class VideoItem {
       isFavorited: isFavorited ?? this.isFavorited,
       isNotInterested: isNotInterested ?? this.isNotInterested,
       watchProgress: watchProgress ?? this.watchProgress,
-      transcodedPath: transcodedPath ?? this.transcodedPath,
-      isTranscoded: isTranscoded ?? this.isTranscoded,
     );
   }
 
@@ -123,8 +113,6 @@ class VideoItem {
       'isFavorited': isFavorited ? 1 : 0,
       'isNotInterested': isNotInterested ? 1 : 0,
       'watchProgress': watchProgress,
-      'transcodedPath': transcodedPath,
-      'isTranscoded': isTranscoded ? 1 : 0,
     };
   }
 
@@ -149,8 +137,6 @@ class VideoItem {
       isFavorited: (map['isFavorited'] as int?) == 1,
       isNotInterested: (map['isNotInterested'] as int?) == 1,
       watchProgress: (map['watchProgress'] as num?)?.toDouble() ?? 0.0,
-      transcodedPath: map['transcodedPath'] as String?,
-      isTranscoded: (map['isTranscoded'] as int?) == 1,
     );
   }
 }

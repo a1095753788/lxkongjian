@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/video_item.dart';
@@ -17,6 +18,8 @@ class FavoriteFeed extends StatefulWidget {
 class _FavoriteFeedState extends State<FavoriteFeed> {
   late PageController _pageController;
   late VideoProvider _videoProvider;
+  late PlayerProvider _playerProvider;
+  StreamSubscription<void>? _completedSub;
   int _currentPage = 0;
   List<VideoItem> _favoriteVideos = [];
   bool _isLoading = true;
@@ -26,17 +29,39 @@ class _FavoriteFeedState extends State<FavoriteFeed> {
     super.initState();
     _pageController = PageController();
     _videoProvider = context.read<VideoProvider>();
+    _playerProvider = context.read<PlayerProvider>();
     // 收藏状态可能从任何地方改变（推荐流里点收藏、这里取消收藏），
     // 必须监听 provider，否则列表会停留在 initState 那一刻的快照。
     _videoProvider.addListener(_syncFavorites);
+    // 播完自动切下一条
+    _completedSub = _playerProvider.onCompleted.listen((_) => _goToNext());
     _loadFavoriteVideos();
   }
 
   @override
   void dispose() {
+    _completedSub?.cancel();
     _videoProvider.removeListener(_syncFavorites);
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// 播完切下一条。收藏页是循环播放的，最后一条之后回到第一条。
+  /// 只有"当前在播的视频属于收藏列表"时才响应，避免和推荐流抢翻页。
+  Future<void> _goToNext() async {
+    if (!mounted || !_pageController.hasClients) return;
+
+    final current = _playerProvider.currentVideo;
+    if (current == null) return;
+    if (!_favoriteVideos.any((v) => v.id == current.id)) return;
+    if (_favoriteVideos.length <= 1) return;
+
+    final next = (_currentPage + 1) % _favoriteVideos.length;
+    await _pageController.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _loadFavoriteVideos() async {

@@ -58,8 +58,6 @@ class DatabaseService {
         isFavorited INTEGER DEFAULT 0,
         isNotInterested INTEGER DEFAULT 0,
         watchProgress REAL DEFAULT 0.0,
-        transcodedPath TEXT,
-        isTranscoded INTEGER DEFAULT 0,
         FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE CASCADE
       )
     ''');

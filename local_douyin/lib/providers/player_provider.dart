@@ -40,6 +40,11 @@ class PlayerProvider extends ChangeNotifier {
   double _playbackSpeed = 1.0;
   DateTime _lastPersistAt = DateTime.now();
 
+  /// 单条视频播放完成时广播，UI 层订阅后切下一条。
+  /// 用 broadcast 是因为推荐流和收藏流会同时订阅（IndexedStack 下两者都存活）。
+  final StreamController<void> _completedController =
+      StreamController<void>.broadcast();
+
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration>? _durationSub;
   StreamSubscription<bool>? _playingSub;
@@ -59,6 +64,9 @@ class PlayerProvider extends ChangeNotifier {
     if (_duration.inMilliseconds == 0) return 0.0;
     return _position.inMilliseconds / _duration.inMilliseconds;
   }
+
+  /// 播放完成事件流，UI 层订阅后切下一条
+  Stream<void> get onCompleted => _completedController.stream;
 
   Future<void> playVideo(VideoItem video) async {
     if (_currentVideo?.id == video.id && _player != null) {
@@ -87,8 +95,10 @@ class PlayerProvider extends ChangeNotifier {
       if (native is NativePlayer) {
         await native.setProperty('hwdec', 'no');
       }
-      // 循环播放
-      await _player!.setPlaylistMode(PlaylistMode.loop);
+      // 播完即停，不做单条循环。
+      // 抖音的行为是"看完自动切下一条"，由 UI 层订阅 onCompleted 后翻页，
+      // 播放器本身不负责循环。
+      await _player!.setPlaylistMode(PlaylistMode.none);
 
       _controller = VideoController(_player!);
 
@@ -107,18 +117,24 @@ class PlayerProvider extends ChangeNotifier {
         notifyListeners();
       });
       _completedSub = _player!.stream.completed.listen((completed) {
-        // PlaylistMode.loop 由底层处理，无需手动 replay
+        if (!completed) return;
+        // 播完直接记 1.0：推荐算法的 Dwell Time 里 >=0.9 是最强正信号
+        _persistProgress(forceValue: 1.0);
+        // 通知 UI 切下一条（由各 feed 自行判断是否属于自己）
+        if (!_completedController.isClosed) {
+          _completedController.add(null);
+        }
       });
 
       // 打开媒体文件
-      final file = File(video.playPath);
+      final file = File(video.path);
       if (!await file.exists()) {
         _isInitialized = false;
         notifyListeners();
         return;
       }
 
-      await _player!.open(Media(video.playPath));
+      await _player!.open(Media(video.path));
       // 设置音量/速率
       await _player!.setVolume(_isMuted ? 0.0 : 100.0);
       await _player!.setRate(_playbackSpeed);
@@ -176,16 +192,21 @@ class PlayerProvider extends ChangeNotifier {
   ///
   /// 进度 >= 95% 统一记为 1.0：循环播放模式下 position 会绕回 0，
   /// 不这样处理会把"看完了"误判成"刚开始"。
-  Future<void> _persistProgress() async {
+  Future<void> _persistProgress({double? forceValue}) async {
     final video = _currentVideo;
     if (video == null) return;
-    if (_duration.inMilliseconds <= 0) return;
 
-    final ratio = _position.inMilliseconds / _duration.inMilliseconds;
-    if (ratio.isNaN || ratio.isInfinite) return;
+    final double value;
+    if (forceValue != null) {
+      value = forceValue.clamp(0.0, 1.0).toDouble();
+    } else {
+      if (_duration.inMilliseconds <= 0) return;
+      final ratio = _position.inMilliseconds / _duration.inMilliseconds;
+      if (ratio.isNaN || ratio.isInfinite) return;
+      value =
+          ratio >= _resumeMaxProgress ? 1.0 : ratio.clamp(0.0, 1.0).toDouble();
+    }
 
-    final value =
-        ratio >= _resumeMaxProgress ? 1.0 : ratio.clamp(0.0, 1.0).toDouble();
     try {
       await _dbService.updateWatchProgress(video.id, value);
     } catch (_) {
@@ -247,6 +268,7 @@ class PlayerProvider extends ChangeNotifier {
     // 不 await：这里只做最后一次落库，不阻塞销毁
     _persistProgress();
     _disposeController();
+    _completedController.close();
     super.dispose();
   }
 }

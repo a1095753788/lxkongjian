@@ -36,10 +36,4 @@ class AppConstants {
   // 重看策略
   // 看完的视频适度降权（×0.6），不再像旧算法那样几乎屏蔽（×0.3）
   static const double completedPenalty = 0.6;
-
-  // 转码配置
-  static const String transcodeOutputFormat = 'mp4';
-  static const String transcodeVideoCodec = 'libx264';
-  static const String transcodeAudioCodec = 'aac';
-  static const int transcodeCrf = 23;
 }

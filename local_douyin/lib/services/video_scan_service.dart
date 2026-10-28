@@ -204,14 +204,6 @@ class VideoScanService {
     final video = await _dbService.getVideoById(videoId);
     if (video == null) return;
 
-    // 如果有转码文件，也删除
-    if (video.transcodedPath != null) {
-      final transcodedFile = File(video.transcodedPath!);
-      if (await transcodedFile.exists()) {
-        await transcodedFile.delete();
-      }
-    }
-
     // 删除缩略图文件
     await _deleteThumbnail(video.thumbnailPath);
 
@@ -227,14 +219,6 @@ class VideoScanService {
     final file = File(video.path);
     if (await file.exists()) {
       await file.delete();
-    }
-
-    // 删除转码文件
-    if (video.transcodedPath != null) {
-      final transcodedFile = File(video.transcodedPath!);
-      if (await transcodedFile.exists()) {
-        await transcodedFile.delete();
-      }
     }
 
     // 删除缩略图文件

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/video_item.dart';
 import '../providers/video_provider.dart';
+import '../providers/player_provider.dart';
 import 'video_player_item.dart';
 import 'video_side_actions.dart';
 
@@ -14,6 +16,8 @@ class VideoFeed extends StatefulWidget {
 
 class _VideoFeedState extends State<VideoFeed> {
   late PageController _pageController;
+  late PlayerProvider _playerProvider;
+  StreamSubscription<void>? _completedSub;
   int _currentPage = 0;
   // 防止追加加载重复触发
   bool _isLoadingMore = false;
@@ -24,12 +28,50 @@ class _VideoFeedState extends State<VideoFeed> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _playerProvider = context.read<PlayerProvider>();
+    // 播完自动切下一条（对齐抖音行为，播放器本身不再单条循环）
+    _completedSub = _playerProvider.onCompleted.listen((_) => _goToNext());
   }
 
   @override
   void dispose() {
+    _completedSub?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// 播完切下一条。
+  ///
+  /// 推荐流和收藏流会同时收到完成事件（IndexedStack 下两个都存活），
+  /// 所以只有"当前正在播的视频在本列表里"时才响应，避免两边一起翻页。
+  Future<void> _goToNext() async {
+    if (!mounted || !_pageController.hasClients) return;
+
+    final current = _playerProvider.currentVideo;
+    if (current == null) return;
+
+    var videos = context.read<VideoProvider>().recommendedVideos;
+    if (videos.isEmpty) return;
+    if (!videos.any((v) => v.id == current.id)) return;
+
+    var next = _currentPage + 1;
+    if (next >= videos.length) {
+      if (!_noMore) {
+        await _maybeLoadMore(_currentPage, videos.length);
+        if (!mounted || !_pageController.hasClients) return;
+        videos = context.read<VideoProvider>().recommendedVideos;
+      }
+      if (next >= videos.length) next = 0; // 没有更多了，回到第一条
+    }
+
+    if (!mounted || !_pageController.hasClients) return;
+    if (next == _currentPage) return; // 只有一条时不要自己跳自己
+
+    await _pageController.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _onRefresh() async {

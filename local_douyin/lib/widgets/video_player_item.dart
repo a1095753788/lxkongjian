@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -24,8 +25,16 @@ class VideoPlayerItem extends StatefulWidget {
 }
 
 class _VideoPlayerItemState extends State<VideoPlayerItem> {
+  /// 计为一次播放的门槛：看满 3 秒，或进度过 10%，满足任一即可
+  static const Duration _playCountMinDuration = Duration(seconds: 3);
+  static const double _playCountMinProgress = 0.1;
+
   late PlayerProvider _playerProvider;
   bool _isVisible = false;
+
+  Timer? _countTimer;
+  DateTime? _visibleAt;
+  bool _counted = false;
 
   @override
   void initState() {
@@ -33,17 +42,71 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
     _playerProvider = Provider.of<PlayerProvider>(context, listen: false);
   }
 
+  @override
+  void dispose() {
+    _countTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(VideoPlayerItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // PageView.builder 可能把同一个 State 复用到另一条视频上，
+    // 不复位的话新视频会因为 _counted 还是 true 而永远不被计数。
+    if (oldWidget.video.id != widget.video.id) {
+      _countTimer?.cancel();
+      _countTimer = null;
+      _counted = false;
+      _visibleAt = null;
+      _isVisible = false;
+    }
+  }
+
   void _onVisibilityChanged(VisibilityInfo info) {
     final visible = info.visibleFraction > 0.5;
-    if (visible != _isVisible) {
-      _isVisible = visible;
-      if (visible) {
-        _playerProvider.playVideo(widget.video);
-        context.read<VideoProvider>().incrementPlayCount(widget.video.id);
-        // 同步当前视频的评论到弹幕与列表
-        context.read<CommentProvider>().setCurrentVideo(widget.video.id);
-      }
+    if (visible == _isVisible) return;
+    _isVisible = visible;
+
+    if (visible) {
+      _playerProvider.playVideo(widget.video);
+      // 同步当前视频的评论到弹幕与列表
+      context.read<CommentProvider>().setCurrentVideo(widget.video.id);
+      _startPlayCountWatch();
+    } else {
+      _countTimer?.cancel();
+      _countTimer = null;
     }
+  }
+
+  /// 播放计数：看满 3 秒或进度过 10% 才 +1。
+  ///
+  /// 原来是"一可见就 +1"，快速划过十条会把十条都记成看过，
+  /// 推荐算法的 playCount 项会被严重污染（划过也算喜欢）。
+  void _startPlayCountWatch() {
+    if (_counted) return;
+    _countTimer?.cancel();
+    _visibleAt = DateTime.now();
+
+    _countTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (!mounted || !_isVisible) {
+        timer.cancel();
+        _countTimer = null;
+        return;
+      }
+      // 只统计真正在播的那一条
+      if (_playerProvider.currentVideo?.id != widget.video.id) return;
+
+      final watched = DateTime.now().difference(_visibleAt!);
+      final byTime = watched >= _playCountMinDuration;
+      final byProgress = _playerProvider.progress >= _playCountMinProgress;
+
+      if (byTime || byProgress) {
+        timer.cancel();
+        _countTimer = null;
+        _counted = true;
+        context.read<VideoProvider>().incrementPlayCount(widget.video.id);
+      }
+    });
   }
 
   void _onTap() {

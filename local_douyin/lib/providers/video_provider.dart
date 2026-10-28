@@ -3,13 +3,11 @@ import '../models/video_item.dart';
 import '../services/database_service.dart';
 import '../services/video_scan_service.dart';
 import '../services/recommendation_service.dart';
-import '../services/transcode_service.dart';
 
 class VideoProvider extends ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
   final VideoScanService _scanService = VideoScanService();
   final RecommendationService _recommendationService = RecommendationService();
-  final TranscodeService _transcodeService = TranscodeService();
 
   List<VideoItem> _videos = [];
   List<VideoItem> _recommendedVideos = [];
@@ -81,6 +79,11 @@ class VideoProvider extends ChangeNotifier {
       final index = _videos.indexWhere((v) => v.id == videoId);
       if (index != -1) {
         _videos[index] = video;
+      }
+      // 推荐流读的是 _recommendedVideos，不一起更新的话界面上的播放数不会变
+      final recIndex = _recommendedVideos.indexWhere((v) => v.id == videoId);
+      if (recIndex != -1) {
+        _recommendedVideos[recIndex] = video;
       }
       if (_currentVideo?.id == videoId) {
         _currentVideo = video;
@@ -167,48 +170,6 @@ class VideoProvider extends ChangeNotifier {
       _currentVideo = null;
     }
     notifyListeners();
-  }
-
-  Future<bool> transcodeVideo(
-    VideoItem video, {
-    int? targetWidth,
-    int? crf,
-    Function(double)? onProgress,
-  }) async {
-    try {
-      final success = await _transcodeService.transcodeVideo(
-        video,
-        targetWidth: targetWidth,
-        crf: crf,
-        onProgress: onProgress,
-      );
-      if (success) {
-        await loadVideos();
-      }
-      return success;
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// 删除视频的转码文件
-  Future<bool> deleteTranscodedFile(VideoItem video) async {
-    try {
-      await _transcodeService.deleteTranscodedFile(video);
-      await loadVideos();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// 取消正在进行的转码
-  Future<void> cancelTranscode() async {
-    await _transcodeService.cancelCompression();
   }
 
   Future<List<VideoItem>> getFreshVideos() async {

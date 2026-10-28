@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/video_provider.dart';
 import '../providers/folder_provider.dart';
-import '../services/transcode_service.dart';
 import '../theme/app_theme.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -67,20 +66,6 @@ class ProfileScreen extends StatelessWidget {
           _MenuSection(
             title: '视频管理',
             items: [
-              _MenuItem(
-                icon: Icons.cleaning_services_outlined,
-                title: '清理转码缓存',
-                subtitle: '清理视频转码产生的临时文件',
-                onTap: () async {
-                  final service = TranscodeService();
-                  await service.cleanTranscodedFiles();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('转码缓存已清理')),
-                    );
-                  }
-                },
-              ),
               _MenuItem(
                 icon: Icons.sync,
                 title: '重新扫描所有文件夹',

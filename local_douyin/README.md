@@ -32,7 +32,9 @@
 | 格式支持 | `mp4` `avi` `mkv` `mov` `wmv` `flv` `webm` `3gp` `ts` `m4v` `mpeg` `mpg`（共 12 种，见 `AppConstants.supportedVideoExtensions`） |
 | 倍速 | 0.5x ~ 2.0x |
 | 自动播放/暂停 | 可见性检测，视频露出超过 50% 才开始播，划走自动暂停 |
-| 断点续播 | 记录 `watchProgress`，下次从上次的位置继续 |
+| 播完自动切下一条 | 单条播完自动翻到下一个，不会原地循环同一条；接近末尾自动追加，全库放完回到第一条 |
+| 断点续播 | 每 5 秒记录一次进度，下次打开从上次位置继续。进度 <2% 或 ≥95% 不恢复 |
+| 播放计数 | 看满 3 秒或进度过 10% 才记一次播放。快速划过不计数，避免污染推荐 |
 | 防息屏 | 播放期间保持屏幕常亮 |
 
 ### 交互
@@ -41,7 +43,6 @@
 - **收藏** —— 收藏的视频会从推荐流里移出，只在"收藏"tab 里出现（这是刻意设计，不是 bug）
 - **不感兴趣** —— 标记后从推荐流永久排除，可在"我的"里一键重置
 - **弹幕评论** —— 评论以弹幕形式飘过画面，也可以发普通评论
-- **视频转码** —— 调用系统 MediaCodec 压缩体积，可选 480p / 540p / 720p / 1080p
 - **删除** —— 可以只移除记录，也可以连本地文件一起删（会二次确认）
 
 ### 页面结构
@@ -56,7 +57,7 @@
 - **文件夹** —— 添加/管理视频文件夹，手动触发扫描
 - **＋** —— 快捷跳到文件夹页添加
 - **发现** —— 浏览已扫描的视频，按文件夹分组
-- **我的** —— 统计（视频数/喜欢/收藏/总播放）、清理转码缓存、重新扫描、刷新推荐、重置不感兴趣
+- **我的** —— 统计（视频数/喜欢/收藏/总播放）、重新扫描、刷新推荐、重置不感兴趣
 
 ---
 
@@ -152,7 +153,7 @@ export FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn
 
 **直接改 `lib/services/recommendation_service.dart` 里的 `_computeScore()`。**
 
-⚠️ `lib/utils/constants.dart` 里有一组看起来很专业的参数（`bayesianMinVotes`、`hnGravity`、`likeCountWeight`、`completedPenalty`、`transcodeCrf`…），注释写着"综合 Bayesian Average + HN 衰减"。**这些是上一版算法的残留，当前代码一处都没引用**（全库 0 次调用）。改它们不会有任何效果。真正生效的只有 `exploreEpsilon`、`maxConsecutivePerFolder`、`supportedVideoExtensions`、`dbVersion`、`transcodeOutputFormat` 这五个。
+⚠️ `lib/utils/constants.dart` 里有一组看起来很专业的参数（`bayesianMinVotes`、`hnGravity`、`likeCountWeight`、`completedPenalty`…），注释写着"综合 Bayesian Average + HN 衰减"。**这些是上一版算法的残留，当前代码一处都没引用**（全库 0 次调用）。改它们不会有任何效果。真正生效的只有 `exploreEpsilon`、`maxConsecutivePerFolder`、`supportedVideoExtensions`、`dbVersion` 这四个。
 
 ---
 
@@ -160,22 +161,13 @@ export FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn
 
 | 内容 | 位置 |
 |---|---|
-| 数据库 | 应用私有目录 `local_douyin.db`（SQLite，schema 版本 5） |
+| 数据库 | 应用私有目录 `local_douyin.db`（SQLite，schema 版本 4） |
 | 缩略图 | `<应用文档目录>/thumbnails/<视频ID>.jpg`（480px 宽，JPEG 75） |
-| 转码文件 | `<应用文档目录>/transcoded/<原名>_<时间戳>.mp4` |
 | 原视频 | **不复制、不移动**，只存路径 |
 
 三张表：`folders`、`videos`、`comments`。
 
 **重要：所有数据都在应用私有目录里，卸载 App 就全没了。** 重装后要重新添加文件夹、重新扫描，点赞/收藏/观看进度全部丢失。原视频文件不受影响（除非你手动用了"删除文件"）。
-
-### 数据库版本
-
-当前 schema 为 **v5**。
-
-v5 修掉了一个会影响全新安装用户的缺陷：早期版本的 `_onCreate()` 建 `videos` 表时漏了 `isNotInterested` 列（该列只在 `onUpgrade` 里补），导致新装用户点"不感兴趣"直接抛 `no such column: isNotInterested`，而从旧版本升级上来的用户反而正常。
-
-现在 `_onCreate` 已补上该列，同时版本号升到 5，让已经处于缺列状态的旧库在升级时自动补齐。
 
 ---
 
@@ -192,8 +184,7 @@ local_douyin/
 │   ├── services/
 │   │   ├── database_service.dart    SQLite CRUD
 │   │   ├── video_scan_service.dart  递归扫目录、生成缩略图、删文件
-│   │   ├── recommendation_service.dart  推荐算法（核心）
-│   │   └── transcode_service.dart   调 video_compress 转码
+│   │   └── recommendation_service.dart  推荐算法（核心）
 │   ├── widgets/                     视频流、播放器、弹幕、侧边按钮
 │   ├── theme/                       深色主题
 │   └── utils/constants.dart         常量（注意上面的死代码提醒）
@@ -202,7 +193,7 @@ local_douyin/
 └── pubspec.yaml                     依赖
 ```
 
-技术栈：Flutter · media_kit（libmpv/FFmpeg）· Provider · sqflite · video_compress · video_thumbnail · file_picker
+技术栈：Flutter · media_kit（libmpv/FFmpeg）· Provider · sqflite · video_thumbnail · file_picker
 
 ---
 
@@ -214,6 +205,14 @@ local_douyin/
 - **不能上 Google Play。** 申请了 `MANAGE_EXTERNAL_STORAGE`（所有文件访问），这个权限 Google 只批给文件管理器和杀毒软件。只能侧载分发。
 - **存储权限得手动给。** Android 11+ 上 `MANAGE_EXTERNAL_STORAGE` 不会弹窗，得自己进系统设置开。不给的话扫描会报"无法读取文件夹内容"。
 - **`AndroidManifest.xml` 里声明了 `INTERNET` 权限**，但代码没有任何网络请求。这是 `cached_network_image` 等依赖带进来的，删依赖时记得一起清掉，否则"纯本地"这个卖点会被应用商店和用户质疑。
+
+### 数据库的坑（新装用户会遇到）
+
+`database_service.dart` 的 `_onCreate()` 建 `videos` 表时**漏了 `isNotInterested` 列**，而这一列只在 `onUpgrade` 的 `oldVersion < 4` 分支里加。
+
+结果：**全新安装的 App，点"不感兴趣"会抛 `no such column: isNotInterested`。** 从旧版本升级上来的反而没事。
+
+修法：在 `_onCreate` 的 `CREATE TABLE videos` 里补上 `isNotInterested INTEGER DEFAULT 0`。
 
 ### 性能
 
