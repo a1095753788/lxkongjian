@@ -65,7 +65,7 @@
 
 ### 方式一：直接装 APK
 
-1. 下载 [`apk/local_douyin.apk`](apk/local_douyin.apk)（约 92 MB）
+1. 下载 **[local_douyin-debug.apk](https://github.com/a1095753788/lxkongjian/releases/latest/download/local_douyin-debug.apk)**（约 98 MB，始终指向最新构建）
 2. 传到手机安装。会提示"未知来源"，需要允许安装
 3. 首次打开授予"所有文件访问权限"（Android 11+ 需要手动在设置里给）
 4. 进入 **文件夹** → **添加文件夹** → 选一个视频目录

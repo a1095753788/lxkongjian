@@ -205,21 +205,22 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # 把构建产物写回仓库的 apk/ 目录，保证 README 里的下载链接指向最新包。
-      # GitHub 单个文件上限 100MB（104857600 字节），超了跳过并告警，
-      # 这种情况应改用 Release 附件承载。
-      # 产物提交回仓库后会再产生一次 push 事件，靠 commit message 里的跳过标记抑制，
-      # 同时 paths 过滤不包含 apk/ 目录，双保险。
-      # 注意：日常提交时别在 commit message 里写这个标记，否则会把正常构建也跳过。
+      # 把构建产物写回仓库的 apk/ 目录，让仓库里始终有一份可直接下载的包。
+      # GitHub 单个文件硬上限 100 MiB = 104857600 字节，留一点余量取 104000000。
+      # 超限时跳过（下面的 Release 步骤仍会提供下载）。
+      # 这个提交只含 apk/ 目录，而 workflow 的 paths 过滤不含 apk/，
+      # 所以不会自己触发自己，形成死循环。
       - name: Commit APK to repo
+        id: commit_apk
+        continue-on-error: true
         run: |
           DEST=local_douyin/apk/local_douyin.apk
           SRC=local_douyin/build/app/outputs/flutter-apk/app-debug.apk
           SIZE=$(stat -c%s "$SRC")
-          echo "APK: $SIZE bytes ($((SIZE/1024/1024)) MB)"
+          echo "APK: $SIZE bytes ($((SIZE/1024/1024)) MiB)"
 
-          if [ "$SIZE" -gt 99000000 ]; then
-            echo "::warning::APK 超过 99MB，接近 GitHub 100MB 单文件上限，跳过自动提交"
+          if [ "$SIZE" -gt 104000000 ]; then
+            echo "::warning::APK $SIZE 字节，超过 100MiB 单文件上限，跳过提交到 git（Release 附件仍可用）"
             exit 0
           fi
 
@@ -231,21 +232,41 @@ jobs:
           git add -f "$DEST"
 
           if git diff --cached --quiet; then
-            echo "APK 内容无变化，跳过提交"
+            echo "APK 内容与仓库一致，无需提交"
             exit 0
           fi
 
           git commit -m "build: 更新 APK（$(date -u +%Y-%m-%d) 构建）[skip ci]"
-          # 构建期间可能有人往 master 推过东西
           git pull --rebase origin master || git rebase --abort || true
           git push origin HEAD:master
 
-      - name: APK commit summary
+      # Release 附件没有 100MiB 限制，作为稳定下载入口。
+      # 不加 --prerelease：README 用的是 /releases/latest/download/ 这个地址，
+      # 它只认"最新的正式发布"，标成 prerelease 会 404。
+      - name: Publish APK as Release asset
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=local_douyin/build/app/outputs/flutter-apk/app-debug.apk
+          SIZE=$(stat -c%s "$APK")
+          # 同名 release 和 tag 先删掉，否则 create 会报已存在
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest "$APK#local_douyin-debug.apk" \
+            --title "最新构建 (debug)" \
+            --notes "commit: ${{ github.sha }}
+          构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          大小: $((SIZE/1024/1024)) MiB
+          下载后直接安装，需要 Android 11+ 并授予所有文件访问权限。"
+
+      - name: APK summary
         if: always()
         run: |
           {
-            echo "### 仓库内 APK"
+            echo "### APK 产物"
             echo '```'
-            ls -lh local_douyin/apk/local_douyin.apk 2>/dev/null || echo "未找到"
+            ls -lh local_douyin/build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null || echo "未找到"
             echo '```'
+            echo "提交到 git: ${{ steps.commit_apk.outcome }}"
+            echo "Release: https://github.com/${{ github.repository }}/releases/tag/latest"
           } >> "$GITHUB_STEP_SUMMARY"
