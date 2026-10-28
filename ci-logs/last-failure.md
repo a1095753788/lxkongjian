@@ -1,18 +1,6 @@
 # 构建失败日志
 
-run: https://github.com/a1095753788/lxkongjian/actions/runs/40653380371
-commit: 4766a92b905bec54925052ecb7b2d3e8b2ec4804
-
-## 版本信息
-```
-Flutter 3.44.2 • channel stable • https://github.com/flutter/flutter.git
-Framework • revision c9a6c48423 (5 months ago) • 2026-06-10 15:52:41 -0700
-Engine • hash 04efd7c093d4e9281d5526ebcad6ecc60ba8badf (revision 77e2e94772) (4 months ago) • 2026-06-10 19:59:06.000Z
-Tools • Dart 3.12.2 • DevTools 2.57.0
-openjdk version "17.0.20.1" 2026-08-18
-OpenJDK Runtime Environment Temurin-17.0.20.1+1 (build 17.0.20.1+1)
-OpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sharing)
-```
+run: https://github.com/a1095753788/lxkongjian/actions/runs/40656173841
 
 ## 错误关键行
 ```
@@ -23,13 +11,14 @@ OpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sha
 36:> Failed to notify project evaluation listener.
 37:   > java.lang.NullPointerException (no error message)
 46:   > java.lang.NullPointerException (no error message)
-55:BUILD FAILED in 2m 55s
+55:BUILD FAILED in 2m 12s
 60:│ This results in a build failure when applying the Flutter Gradle plugin at           │
+63:│ To resolve this update flutter or opt out of `android.newDsl`.                       │
 68:│ incompatible dependencies.                                                           │
 70:Gradle task assembleDebug failed with exit code 1
 ```
 
-## 日志末尾 200 行
+## 日志末尾 250 行
 ```
 Running Gradle task 'assembleDebug'...                          
 Checking the license for package NDK (Side by side) 28.2.13676358 in /usr/local/lib/android/sdk/licenses
@@ -85,8 +74,8 @@ A problem occurred configuring project ':video_thumbnail'.
 > Get more help at https://help.gradle.org.
 ==============================================================================
 
-BUILD FAILED in 2m 55s
-Running Gradle task 'assembleDebug'...                            176.4s
+BUILD FAILED in 2m 12s
+Running Gradle task 'assembleDebug'...                            132.7s
 
 ┌─ Flutter Fix ────────────────────────────────────────────────────────────────────────┐
 │ [!] Starting AGP 9+, only the new DSL interface will be read.                        │
