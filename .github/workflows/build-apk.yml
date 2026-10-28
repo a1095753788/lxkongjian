@@ -204,3 +204,45 @@ jobs:
           path: local_douyin/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 90
+
+      # 把构建产物写回仓库的 apk/ 目录，保证 README 里的下载链接指向最新包。
+      # GitHub 单个文件上限 100MB（104857600 字节），超了跳过并告警，
+      # 这种情况应改用 Release 附件承载。
+      - name: Commit APK to repo
+        run: |
+          DEST=local_douyin/apk/local_douyin.apk
+          SRC=local_douyin/build/app/outputs/flutter-apk/app-debug.apk
+          SIZE=$(stat -c%s "$SRC")
+          echo "APK: $SIZE bytes ($((SIZE/1024/1024)) MB)"
+
+          if [ "$SIZE" -gt 99000000 ]; then
+            echo "::warning::APK 超过 99MB，接近 GitHub 100MB 单文件上限，跳过自动提交"
+            exit 0
+          fi
+
+          mkdir -p local_douyin/apk
+          cp "$SRC" "$DEST"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "$DEST"
+
+          if git diff --cached --quiet; then
+            echo "APK 内容无变化，跳过提交"
+            exit 0
+          fi
+
+          git commit -m "build: 更新 APK（$(date -u +%Y-%m-%d) 构建）[skip ci]"
+          # 构建期间可能有人往 master 推过东西
+          git pull --rebase origin master || git rebase --abort || true
+          git push origin HEAD:master
+
+      - name: APK commit summary
+        if: always()
+        run: |
+          {
+            echo "### 仓库内 APK"
+            echo '```'
+            ls -lh local_douyin/apk/local_douyin.apk 2>/dev/null || echo "未找到"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
