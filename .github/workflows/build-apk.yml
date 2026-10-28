@@ -208,6 +208,9 @@ jobs:
       # 把构建产物写回仓库的 apk/ 目录，保证 README 里的下载链接指向最新包。
       # GitHub 单个文件上限 100MB（104857600 字节），超了跳过并告警，
       # 这种情况应改用 Release 附件承载。
+      # 产物提交回仓库后会再产生一次 push 事件，靠 commit message 里的跳过标记抑制，
+      # 同时 paths 过滤不包含 apk/ 目录，双保险。
+      # 注意：日常提交时别在 commit message 里写这个标记，否则会把正常构建也跳过。
       - name: Commit APK to repo
         run: |
           DEST=local_douyin/apk/local_douyin.apk
