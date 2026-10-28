@@ -16,6 +16,8 @@ jobs:
     name: Build debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -57,6 +59,14 @@ jobs:
           echo "--- platforms ---";  ls "$SDK/platforms"  || true
           echo "--- build-tools ---"; ls "$SDK/build-tools" || true
 
+      - name: Point Gradle wrapper at official distribution
+        run: |
+          # 仓库里 wrapper 指向腾讯云镜像（为国内网络优化），GitHub runner 在境外访问可能不通，
+          # 且分发包下载失败不会 fallback，会直接中断构建。这里在 CI 环境改回官方源。
+          F=local_douyin/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's|mirrors.cloud.tencent.com/gradle/|services.gradle.org/distributions/|' "$F"
+          cat "$F"
+
       - name: Install dependencies
         working-directory: local_douyin
         run: flutter pub get
@@ -81,8 +91,37 @@ jobs:
       - name: Stop if build failed
         if: steps.build.outcome != 'success'
         run: |
-          echo "::error::APK build failed — download the 'build-log' artifact for the full output"
-          tail -n 60 local_douyin/build.log || true
+          mkdir -p ci-logs
+          {
+            echo "# 构建失败日志"
+            echo
+            echo "run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "commit: ${{ github.sha }}"
+            echo
+            echo "## 版本信息"
+            echo '```'
+            flutter --version 2>&1 || true
+            java -version 2>&1 || true
+            echo '```'
+            echo
+            echo "## 错误关键行"
+            echo '```'
+            grep -n -i -E "error|failed|failure|exception|could not|unable to|no such|not found|incompatible" \
+              local_douyin/build.log | tail -n 100 || true
+            echo '```'
+            echo
+            echo "## 日志末尾 200 行"
+            echo '```'
+            tail -n 200 local_douyin/build.log || true
+            echo '```'
+          } > ci-logs/last-failure.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci-logs/last-failure.md
+          git commit -m "ci: 记录构建失败日志 [skip ci]" || echo "nothing to commit"
+          git push origin HEAD:master || echo "push failed"
+          echo "::error::APK build failed — full log committed to ci-logs/last-failure.md"
           exit 1
 
       - name: Report APK size
