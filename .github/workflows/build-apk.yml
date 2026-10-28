@@ -205,59 +205,40 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # 把构建产物写回仓库的 apk/ 目录，让仓库里始终有一份可直接下载的包。
-      # GitHub 单个文件硬上限 100 MiB = 104857600 字节，留一点余量取 104000000。
-      # 超限时跳过（下面的 Release 步骤仍会提供下载）。
-      # 这个提交只含 apk/ 目录，而 workflow 的 paths 过滤不含 apk/，
-      # 所以不会自己触发自己，形成死循环。
-      - name: Commit APK to repo
-        id: commit_apk
-        continue-on-error: true
-        run: |
-          DEST=local_douyin/apk/local_douyin.apk
-          SRC=local_douyin/build/app/outputs/flutter-apk/app-debug.apk
-          SIZE=$(stat -c%s "$SRC")
-          echo "APK: $SIZE bytes ($((SIZE/1024/1024)) MiB)"
-
-          if [ "$SIZE" -gt 104000000 ]; then
-            echo "::warning::APK $SIZE 字节，超过 100MiB 单文件上限，跳过提交到 git（Release 附件仍可用）"
-            exit 0
-          fi
-
-          mkdir -p local_douyin/apk
-          cp "$SRC" "$DEST"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f "$DEST"
-
-          if git diff --cached --quiet; then
-            echo "APK 内容与仓库一致，无需提交"
-            exit 0
-          fi
-
-          git commit -m "build: 更新 APK（$(date -u +%Y-%m-%d) 构建）[skip ci]"
-          git pull --rebase origin master || git rebase --abort || true
-          git push origin HEAD:master
-
-      # Release 附件没有 100MiB 限制，作为稳定下载入口。
-      # 不加 --prerelease：README 用的是 /releases/latest/download/ 这个地址，
-      # 它只认"最新的正式发布"，标成 prerelease 会 404。
+      # 说明：debug APK 实测 203,861,808 字节（194.4 MiB）。体积主要来自
+      # media_kit/libmpv + FFmpeg 的 4 套原生库，且 AGP 默认把 .so 以不压缩方式
+      # 打进 APK（为了 extractNativeLibs=false 和 16KB 对齐），所以压不下去。
+      # 这远超 GitHub 单文件 100 MiB（104857600）硬上限，提交进 git 永远会失败，
+      # 因此不再尝试，统一走下面的 Release 附件。
       - name: Publish APK as Release asset
         if: steps.build.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          APK=local_douyin/build/app/outputs/flutter-apk/app-debug.apk
-          SIZE=$(stat -c%s "$APK")
+          SRC=local_douyin/build/app/outputs/flutter-apk/app-debug.apk
+          SIZE=$(stat -c%s "$SRC")
+
+          # 踩过的坑：gh 的 "路径#改名" 语法在 runner 上没生效，附件名变成了
+          # app-debug.apk，README 里指向 local_douyin-debug.apk 的链接就 404 了。
+          # 这里先复制成目标文件名再上传，附件名必然等于文件名，不依赖重命名语法。
+          mkdir -p dist
+          cp "$SRC" dist/local_douyin-debug.apk
+
           # 同名 release 和 tag 先删掉，否则 create 会报已存在
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create latest "$APK#local_douyin-debug.apk" \
+          gh release create latest dist/local_douyin-debug.apk \
             --title "最新构建 (debug)" \
             --notes "commit: ${{ github.sha }}
           构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          大小: $((SIZE/1024/1024)) MiB
+          大小: $((SIZE/1048576)) MiB
           下载后直接安装，需要 Android 11+ 并授予所有文件访问权限。"
+
+          # 上传后自检：附件名必须对得上，否则 README 的下载链接会 404
+          echo "--- release assets ---"
+          gh release view latest --json assets --jq '.assets[] | "\(.name)  \(.size) bytes"'
+          gh release view latest --json assets --jq '.assets[].name' \
+            | grep -qx 'local_douyin-debug.apk' \
+            || { echo "::error::附件名不是 local_douyin-debug.apk，README 链接会 404"; exit 1; }
 
       - name: APK summary
         if: always()
@@ -267,6 +248,7 @@ jobs:
             echo '```'
             ls -lh local_douyin/build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null || echo "未找到"
             echo '```'
-            echo "提交到 git: ${{ steps.commit_apk.outcome }}"
-            echo "Release: https://github.com/${{ github.repository }}/releases/tag/latest"
+            echo "下载: https://github.com/${{ github.repository }}/releases/latest/download/local_douyin-debug.apk"
+            echo ""
+            echo "> debug APK 约 194 MiB，超过 GitHub 单文件 100 MiB 上限，只能放 Release 附件。"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -7,7 +7,7 @@
 - 纯本地播放，视频不出手机
 - 软解码（libmpv），老机器上也不绿屏
 - 推荐算法有明确的评分公式，参数全部可改
-- 已带预构建 APK，装完就能用
+- 已带预构建 APK（在 [Releases](../../releases)），装完就能用
 
 ---
 
@@ -65,7 +65,7 @@
 
 ### 方式一：直接装 APK
 
-1. 下载 **[local_douyin-debug.apk](https://github.com/a1095753788/lxkongjian/releases/latest/download/local_douyin-debug.apk)**（约 98 MB，始终指向最新构建）
+1. 下载 **[local_douyin-debug.apk](https://github.com/a1095753788/lxkongjian/releases/latest/download/local_douyin-debug.apk)**（约 195 MB，始终指向最新构建）
 2. 传到手机安装。会提示"未知来源"，需要允许安装
 3. 首次打开授予"所有文件访问权限"（Android 11+ 需要手动在设置里给）
 4. 进入 **文件夹** → **添加文件夹** → 选一个视频目录
@@ -73,7 +73,10 @@
 
 > 这个 APK 是 **debug 构建**，体积偏大、启动比 release 慢，功能完全一样。介意的话用方式二自己打 release 包。
 >
-> 仓库里的 APK 可能落后于源码。想拿最新构建产物，去 [Actions](../../actions/workflows/build-apk.yml) 页面下载 `local_douyin-debug-apk`（每次推送到 `master` 且改动 `lib/`、`android/` 或 `pubspec` 时会自动构建）。
+> **为什么下载链接指向 Release 而不是仓库里的文件？**
+> debug 包实测 203,861,808 字节（194.4 MiB），体积几乎全在 media_kit/libmpv + FFmpeg 的 4 套原生库上，而且 AGP 默认把 `.so` 以不压缩方式打进 APK（为了 `extractNativeLibs=false` 和 16KB 对齐），压不下去。GitHub 单个文件硬上限是 100 MiB（104,857,600 字节），所以它**没法提交进 git**，只能放在 Release 附件里。
+>
+> 想要最新构建产物，也可以去 [Actions](../../actions/workflows/build-apk.yml) 页面下载 `local_douyin-debug-apk`（每次推送到 `master` 且改动 `lib/`、`android/` 或 `pubspec` 时会自动构建，同时更新上面的 Release）。
 
 ### 方式二：从源码构建
 
@@ -191,9 +194,10 @@ local_douyin/
 │   ├── theme/                       深色主题
 │   └── utils/constants.dart         常量（注意上面的死代码提醒）
 ├── android/                         原生配置
-├── apk/local_douyin.apk             预构建 APK
 └── pubspec.yaml                     依赖
 ```
+
+> 仓库里**不存放** APK。debug 包 194.4 MiB，超过 GitHub 单文件 100 MiB 硬上限，二进制只通过 [Releases](../../releases) 分发。
 
 技术栈：Flutter · media_kit（libmpv/FFmpeg）· Provider · sqflite · video_thumbnail · file_picker
 
