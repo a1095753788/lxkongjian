@@ -15,7 +15,7 @@ jobs:
   build:
     name: Build debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -30,6 +30,9 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # 锁定 3.44.2：这是本项目 AGP 9.0.1 + Gradle 9.1.0 验证过的版本
+          # （Dart 3.12.2，满足 pubspec 的 >=3.12.0 约束）
+          flutter-version: '3.44.2'
           channel: stable
           cache: true
 
@@ -38,32 +41,53 @@ jobs:
           flutter --version
           java -version
           echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-      - name: Ensure Android SDK 36
+      # AGP 9.0.1 硬性要求：compileSdk 36 + build-tools >= 36.0.0 + JDK 17 + Gradle 9.1.0
+      # 无条件安装，sdkmanager 对已存在的组件会直接跳过
+      - name: Ensure Android SDK 36 + build-tools 36.0.0
         run: |
           SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          if [ ! -d "$SDK/platforms/android-36" ]; then
-            echo "platform 36 not found, installing..."
-            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --install \
-              "platforms;android-36" "build-tools;36.0.0" || true
+          SDKMGR="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMGR" ]; then
+            SDKMGR="$(find "$SDK" -name sdkmanager -type f 2>/dev/null | head -1)"
           fi
-          echo "--- installed platforms ---"
-          ls "$SDK/platforms" || true
-          echo "--- installed build-tools ---"
-          ls "$SDK/build-tools" || true
+          echo "sdkmanager: $SDKMGR"
+          yes | "$SDKMGR" --install "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
+          echo "--- platforms ---";  ls "$SDK/platforms"  || true
+          echo "--- build-tools ---"; ls "$SDK/build-tools" || true
 
       - name: Install dependencies
         working-directory: local_douyin
         run: flutter pub get
 
       - name: Build debug APK
+        id: build
         working-directory: local_douyin
-        run: flutter build apk --debug
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          flutter build apk --debug 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: local_douyin/build.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop if build failed
+        if: steps.build.outcome != 'success'
+        run: |
+          echo "::error::APK build failed — download the 'build-log' artifact for the full output"
+          tail -n 60 local_douyin/build.log || true
+          exit 1
 
       - name: Report APK size
         working-directory: local_douyin
-        run: |
-          ls -lh build/app/outputs/flutter-apk/
+        run: ls -lh build/app/outputs/flutter-apk/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
