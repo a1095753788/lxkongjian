@@ -91,15 +91,36 @@ jobs:
       # pub 上没有可用新版本，只能在 CI 里把这一行删掉。
       - name: Patch video_thumbnail (jcenter removed in Gradle 9)
         run: |
-          F=$(find "$HOME/.pub-cache" -path "*video_thumbnail*/android/build.gradle" 2>/dev/null | head -1)
-          if [ -z "$F" ]; then
-            echo "::error::video_thumbnail build.gradle not found in pub cache"
+          echo "HOME=$HOME  PUB_CACHE=${PUB_CACHE:-<unset>}"
+          CACHE="${PUB_CACHE:-$HOME/.pub-cache}"
+          echo "cache root: $CACHE"
+
+          FILES=$(find "$CACHE" -path "*video_thumbnail*/android/build.gradle" 2>/dev/null || true)
+          echo "--- found ---"
+          echo "$FILES"
+          if [ -z "$FILES" ]; then
+            echo "::error::video_thumbnail build.gradle not found under $CACHE"
             exit 1
           fi
-          echo "patching: $F"
-          sed -i '/jcenter()/d' "$F"
-          echo "--- after patch ---"
-          cat "$F"
+
+          # 全部打补丁：pub-cache 里可能残留多个版本，只改第一个会漏
+          for F in $FILES; do
+            sed -i '/jcenter()/d' "$F"
+            echo "--- patched: $F ---"
+            if grep -q "jcenter" "$F"; then
+              echo "::warning::jcenter still present in $F"
+            else
+              echo "clean"
+            fi
+          done
+
+          # 写进 step summary，失败时也能直接看到补丁结果
+          {
+            echo "### video_thumbnail 补丁"
+            echo '```'
+            for F in $FILES; do echo "$F"; grep -n "jcenter" "$F" || echo "  (无 jcenter)"; done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build debug APK
         id: build
