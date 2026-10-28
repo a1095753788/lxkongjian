@@ -103,22 +103,27 @@ jobs:
             exit 1
           fi
 
-          # 全部打补丁：pub-cache 里可能残留多个版本，只改第一个会漏
+          # 全部打补丁：pub-cache 里可能残留多个版本，只改第一个会漏。
+          # 注意是把 jcenter() 替换成 mavenCentral()，不能直接删：
+          # 这个包的 buildscript 里只声明了 google()，而它依赖的 asm/protobuf/
+          # proguard 等老库不在 Google 仓库，删掉 jcenter 会导致
+          # "Could not resolve all artifacts for configuration 'classpath'"。
           for F in $FILES; do
-            sed -i '/jcenter()/d' "$F"
+            sed -i 's|jcenter()|mavenCentral()|g' "$F"
             echo "--- patched: $F ---"
             if grep -q "jcenter" "$F"; then
               echo "::warning::jcenter still present in $F"
             else
               echo "clean"
             fi
+            grep -n "mavenCentral\|google()" "$F" || true
           done
 
           # 写进 step summary，失败时也能直接看到补丁结果
           {
             echo "### video_thumbnail 补丁"
             echo '```'
-            for F in $FILES; do echo "$F"; grep -n "jcenter" "$F" || echo "  (无 jcenter)"; done
+            for F in $FILES; do echo "$F"; grep -n "jcenter\|mavenCentral" "$F" || echo "  (无)"; done
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
