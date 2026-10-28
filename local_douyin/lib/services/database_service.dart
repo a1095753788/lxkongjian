@@ -56,6 +56,7 @@ class DatabaseService {
         likeCount INTEGER DEFAULT 0,
         isLiked INTEGER DEFAULT 0,
         isFavorited INTEGER DEFAULT 0,
+        isNotInterested INTEGER DEFAULT 0,
         watchProgress REAL DEFAULT 0.0,
         transcodedPath TEXT,
         isTranscoded INTEGER DEFAULT 0,
@@ -83,6 +84,16 @@ class DatabaseService {
       try {
         await db.execute('ALTER TABLE videos ADD COLUMN isNotInterested INTEGER DEFAULT 0');
       } catch (_) {}
+    }
+    // v5：修复 v4 及更早版本 onCreate 漏建 isNotInterested 列的问题。
+    // 全新安装会直接按最新版本执行 onCreate、不走 onUpgrade，
+    // 所以必须显式升版本号，才能让"已经处于缺列状态"的库补上这一列。
+    if (oldVersion < 5) {
+      try {
+        await db.execute('ALTER TABLE videos ADD COLUMN isNotInterested INTEGER DEFAULT 0');
+      } catch (_) {
+        // 列已存在（从 v1~v3 正常升级上来的库），忽略
+      }
     }
   }
 
