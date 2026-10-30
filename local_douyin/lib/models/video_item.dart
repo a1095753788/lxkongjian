@@ -1,5 +1,3 @@
-import 'dart:io';
-
 class VideoItem {
   final String id;
   final String path;
@@ -42,6 +40,25 @@ class VideoItem {
   String get displayName {
     return name.replaceAll(RegExp(r'\.[^.]+$'), '');
   }
+
+  /// 是否从未看过。
+  ///
+  /// 必须靠 [playCount] 判断，不能只看 [watchProgress]——这一个字段背了
+  /// 三种完全不同的含义：
+  ///
+  /// | 实际发生 | watchProgress | 用户态度 |
+  /// |---|---|---|
+  /// | 从没打开过 | 0.0 | 没有证据 |
+  /// | 打开看了 3 秒就划走 | 约 0.05 | 明确不喜欢 |
+  /// | 看到结尾 | 1.0 | 明确喜欢 |
+  ///
+  /// 前两种的 watchProgress 都很小，但推荐含义相反：没看过的视频不该被
+  /// 当成"被划走"来惩罚。`playCount` 只在看满 3 秒或进度过 10% 时才 +1，
+  /// 所以它是"确实看过"的可靠标志。
+  ///
+  /// [watchProgress] 作为兜底：极少数情况下进度已落库但 playCount 没更新，
+  /// 这种有进度的一律不算"没看过"。
+  bool get isNeverWatched => playCount == 0 && watchProgress <= 0.0;
 
   String get fileSizeFormatted {
     if (fileSize < 1024) return '$fileSize B';
