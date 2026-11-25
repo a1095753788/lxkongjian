@@ -17,6 +17,10 @@ class VideoItem {
   final bool isNotInterested;
   final double watchProgress;
 
+  /// path 是 http/https 地址，说明这条来自网络源，磁盘上没有对应文件。
+  bool get isNetwork =>
+      path.startsWith('http://') || path.startsWith('https://');
+
   VideoItem({
     required this.id,
     required this.path,

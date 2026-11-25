@@ -491,12 +491,59 @@ class VideoScanService {
     await _dbService.updateVideoCount(video.folderId);
   }
 
+  /// 请求服务器删除一条网络视频（服务端会把它移到自己的回收站）。
+  /// 失败时抛异常，调用方据此保留本地记录，避免「记录没了、文件还在」。
+  Future<void> deleteNetworkFile(String url) async {
+    final parsed = Uri.tryParse(url);
+    if (parsed == null || parsed.host.isEmpty) {
+      throw Exception('视频地址无效，无法删除');
+    }
+    final target = Uri(
+      scheme: parsed.scheme,
+      host: parsed.host,
+      port: parsed.hasPort ? parsed.port : null,
+      path: '/api/delete',
+    );
+
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
+    try {
+      final request = await client.postUrl(target);
+      request.headers.contentType = ContentType.json;
+      request.add(utf8.encode(jsonEncode(<String, String>{'url': url})));
+      final response =
+          await request.close().timeout(const Duration(seconds: 20));
+      final text = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        var message = '服务器返回 HTTP ${response.statusCode}';
+        try {
+          final decoded = jsonDecode(text);
+          if (decoded is Map && decoded['error'] is String) {
+            message = decoded['error'] as String;
+          }
+        } catch (_) {}
+        throw Exception(message);
+      }
+    } on TimeoutException {
+      throw Exception('删除超时，服务器没有响应');
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   Future<void> deleteVideoWithFile(String videoId) async {
     final video = await _dbService.getVideoById(videoId);
     if (video == null) return;
 
-    // 网络视频只删数据库记录，绝不把 URL 当成本地文件删除。
-    if (!isNetworkVideoPath(video.path)) {
+    if (isNetworkVideoPath(video.path)) {
+      // 网络视频：请求服务器删除（服务端会移入自己的回收站）。
+      // 失败直接抛出，本地记录保持不动。
+      await deleteNetworkFile(video.path);
+    } else {
       final file = File(video.path);
       if (await file.exists()) {
         await file.delete();

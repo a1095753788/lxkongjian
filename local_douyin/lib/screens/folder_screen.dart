@@ -482,7 +482,9 @@ class _VideoListItem extends StatelessWidget {
           backgroundColor: const Color(0xFF1A1A1A),
           title: const Text('删除视频', style: TextStyle(color: Colors.white)),
           content: Text(
-            '确定要删除"${video.displayName}"吗？',
+            video.isNetwork
+                ? '确定要从服务器上删除"${video.displayName}"吗？\n会移入服务器的回收站，可以恢复。'
+                : '确定要删除"${video.displayName}"吗？',
             style: const TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -495,14 +497,17 @@ class _VideoListItem extends StatelessWidget {
                 Navigator.pop(context);
                 context.read<VideoProvider>().deleteVideo(video.id, deleteFile: false);
               },
-              child: const Text('仅移除记录'),
+              child: Text(video.isNetwork ? '从库里移除' : '仅移除记录'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
                 context.read<VideoProvider>().deleteVideo(video.id, deleteFile: true);
               },
-              child: const Text('删除文件', style: TextStyle(color: AppTheme.primaryColor)),
+              child: Text(
+                video.isNetwork ? '删除服务器文件' : '删除文件',
+                style: const TextStyle(color: AppTheme.primaryColor),
+              ),
             ),
           ],
         );
