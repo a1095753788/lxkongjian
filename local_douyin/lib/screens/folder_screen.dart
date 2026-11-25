@@ -68,58 +68,12 @@ class _FolderScreenState extends State<FolderScreen> {
   }
 
   Future<void> _addNetworkSource() async {
-    final controller = TextEditingController();
-    late final String? input;
-    try {
-      input = await showDialog<String>(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            backgroundColor: const Color(0xFF1A1A1A),
-            title: const Text('添加网络视频源', style: TextStyle(color: Colors.white)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '输入服务器地址，App 会读取 /api/videos.json 中的视频清单',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  keyboardType: TextInputType.url,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    hintText: 'http://192.168.31.41:8765',
-                    hintStyle: TextStyle(color: Colors.white38),
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white24),
-                    ),
-                    focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: AppTheme.primaryColor),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('取消'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, controller.text.trim()),
-                child: const Text('添加'),
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
-    }
+    // 控制器交给对话框自己管理：showDialog 的 Future 在点按钮那一刻就返回，
+    // 但对话框还要播退场动画，这时若提前 dispose 控制器会触发框架断言。
+    final input = await showDialog<String>(
+      context: context,
+      builder: (_) => const _NetworkSourceDialog(),
+    );
 
     if (input == null || input.isEmpty || !mounted) return;
 
@@ -395,6 +349,80 @@ class _FolderScreenState extends State<FolderScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 网络源地址输入框。
+///
+/// 单独做成有状态组件，是为了让 TextEditingController 跟着对话框的 State
+/// 一起销毁。不能用 showDialog 返回后再 dispose：那个 Future 在点按钮时就
+/// 完成了，而对话框还在播退场动画，输入框仍会重建并访问控制器。
+class _NetworkSourceDialog extends StatefulWidget {
+  const _NetworkSourceDialog();
+
+  @override
+  State<_NetworkSourceDialog> createState() => _NetworkSourceDialogState();
+}
+
+class _NetworkSourceDialogState extends State<_NetworkSourceDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    Navigator.of(context).pop(value.isEmpty ? null : value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1A1A),
+      title: const Text('添加网络视频源', style: TextStyle(color: Colors.white)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '输入服务器地址，App 会读取 /api/videos.json 中的视频清单',
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'http://192.168.31.41:8765',
+              hintStyle: TextStyle(color: Colors.white38),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.white24),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: AppTheme.primaryColor),
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: const Text('添加'),
+        ),
+      ],
     );
   }
 }
