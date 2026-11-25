@@ -67,6 +67,80 @@ class _FolderScreenState extends State<FolderScreen> {
     }
   }
 
+  Future<void> _addNetworkSource() async {
+    final controller = TextEditingController();
+    late final String? input;
+    try {
+      input = await showDialog<String>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title: const Text('添加网络视频源', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '输入服务器地址，App 会读取 /api/videos.json 中的视频清单',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  keyboardType: TextInputType.url,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    hintText: 'http://192.168.31.41:8765',
+                    hintStyle: TextStyle(color: Colors.white38),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: AppTheme.primaryColor),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: const Text('添加'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
+
+    if (input == null || input.isEmpty || !mounted) return;
+
+    try {
+      await context.read<FolderProvider>().addNetworkSource(input);
+      // 网络视频和普通视频共用同一张表，顺带刷新视频流。
+      context.read<VideoProvider>().loadVideos();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('网络视频源添加成功')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('添加网络源失败: $e')),
+        );
+      }
+    }
+  }
+
   void _showFolderVideos(FolderItem folder) {
     final provider = context.read<FolderProvider>();
     final videos = provider.folderVideos[folder.id] ?? [];
@@ -260,10 +334,27 @@ class _FolderScreenState extends State<FolderScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addFolder,
-        backgroundColor: AppTheme.primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'add_network_source',
+            mini: true,
+            onPressed: _addNetworkSource,
+            backgroundColor: const Color(0xFF2A2A2A),
+            tooltip: '添加网络源',
+            child: const Icon(Icons.cloud_download_outlined, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'add_folder',
+            onPressed: _addFolder,
+            backgroundColor: AppTheme.primaryColor,
+            tooltip: '添加本地文件夹',
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
@@ -286,6 +377,18 @@ class _FolderScreenState extends State<FolderScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _addNetworkSource,
+            icon: const Icon(Icons.cloud_download_outlined),
+            label: const Text('添加网络视频源'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white70,
+              side: const BorderSide(color: Colors.white24),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             ),

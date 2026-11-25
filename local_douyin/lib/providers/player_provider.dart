@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/video_item.dart';
 import '../services/database_service.dart';
+import '../services/video_scan_service.dart';
 
 /// 基于 media_kit (libmpv/ffmpeg) 的播放器 Provider
 ///
@@ -126,12 +127,15 @@ class PlayerProvider extends ChangeNotifier {
         }
       });
 
-      // 打开媒体文件
-      final file = File(video.path);
-      if (!await file.exists()) {
-        _isInitialized = false;
-        notifyListeners();
-        return;
+      // 打开媒体文件：网络视频由 media_kit 直接按 URL 播放，
+      // 不能用本地文件存在性判断（URL 当文件路径一定不存在）。
+      if (!isNetworkVideoPath(video.path)) {
+        final file = File(video.path);
+        if (!await file.exists()) {
+          _isInitialized = false;
+          notifyListeners();
+          return;
+        }
       }
 
       await _player!.open(Media(video.path));

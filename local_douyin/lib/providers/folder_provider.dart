@@ -56,6 +56,20 @@ class FolderProvider extends ChangeNotifier {
     }
   }
 
+  /// 添加网络视频源。service 内部会拉取清单并按 folder 建文件夹入库，
+  /// 这里重新加载 folders / videos，保证界面与数据库一致。
+  Future<FolderItem> addNetworkSource(String url) async {
+    try {
+      final folder = await _scanService.addNetworkSource(url);
+      await loadFolders();
+      return folder;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<List<VideoItem>> scanFolder(String folderId) async {
     _isScanning = true;
     notifyListeners();
